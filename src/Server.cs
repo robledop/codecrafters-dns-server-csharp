@@ -37,15 +37,19 @@ while (true)
         responsePacket.Header.ResponseCode = DnsResponseCode.NotImplemented;
     }
 
-    responsePacket.AddAnswer(new DnsResourceRecord
-    {
-        Name = "codecrafters.io",
-        Type = DnsRecordType.A,
-        Class = DnsRecordClass.IN,
-        TimeToLive = 60,
-        DataLength = 4,
-        Data = [8, 8, 8, 8]
-    });
+    if (responsePacket.Questions != null)
+        foreach (var question in responsePacket.Questions)
+        {
+            responsePacket.AddAnswer(new DnsResourceRecord
+            {
+                Name = question.Name,
+                Type = DnsRecordType.A,
+                Class = DnsRecordClass.IN,
+                TimeToLive = 60,
+                DataLength = 4,
+                Data = [8, 8, 8, 8]
+            });
+        }
 
     WriteLine($"Sending response to {sourceEndPoint}: {responsePacket}");
 
