@@ -5,7 +5,6 @@ using codecrafters_dns_server;
 using codecrafters_dns_server.Model;
 using static System.Console;
 
-// Uncomment this block to pass the first stage
 // Resolve UDP address
 IPAddress ipAddress = IPAddress.Parse("127.0.0.1");
 int port = 2053;

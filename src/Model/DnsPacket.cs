@@ -40,11 +40,7 @@ public class DnsPacket
         };
     }
 
-    public override string ToString()
-    {
-        return
-            $"Id: {Id}, IsResponse: {IsResponse}, OpCode: {OpCode}, IsAuthoritativeAnswer: {IsAuthoritativeAnswer}, IsTruncated: {IsTruncated}, IsRecursionDesired: {IsRecursionDesired}, IsRecursionAvailable: {IsRecursionAvailable}, ResponseCode: {ResponseCode}, QuestionCount: {QuestionCount}, AnswerCount: {AnswerCount}, AuthorityCount: {AuthorityCount}, AdditionalCount: {AdditionalCount}";
-    }
+    
 
     public byte[] ToBytes()
     {
