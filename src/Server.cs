@@ -28,6 +28,15 @@ while (true)
     ArgumentNullException.ThrowIfNull(responsePacket);
     responsePacket.Header.IsResponse = true;
 
+    if (!responsePacket.Header.IsResponse)
+    {
+        responsePacket.Header.ResponseCode = DnsResponseCode.NoError;
+    }
+    else
+    {
+        responsePacket.Header.ResponseCode = DnsResponseCode.NotImplemented;
+    }
+
     responsePacket.AddAnswer(new DnsResourceRecord
     {
         Name = "codecrafters.io",
