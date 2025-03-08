@@ -1,6 +1,9 @@
+using System.Text.Json;
+using System.Xml;
+
 namespace codecrafters_dns_server.Model;
 
-public class DnsPacket 
+public class DnsPacket
 {
     public ushort Id { get; set; }
     public bool IsResponse { get; set; }
@@ -22,7 +25,7 @@ public class DnsPacket
 
     public static DnsPacket Parse(byte[] data)
     {
-        return new DnsPacket
+        var packet = new DnsPacket
         {
             Id = (ushort)((data[0] << 8) | data[1]),
             IsResponse = (data[2] & 0b10000000) != 0,
@@ -38,37 +41,56 @@ public class DnsPacket
             AuthorityCount = (ushort)((data[8] << 8) | data[9]),
             AdditionalCount = (ushort)((data[10] << 8) | data[11]),
         };
+
+        var (questions, questionsLength) = DnsQuestion.Parse(data, packet.QuestionCount);
+        packet.Questions = questions;
+
+        return packet;
     }
 
-    
+    public override string ToString()
+    {
+        return JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+    }
 
     public byte[] ToBytes()
     {
-        var response = new byte[12];
+        // Header
+        var response = new List<byte>
+        {
+            (byte)(Id >> 8),
+            (byte)Id,
+            (byte)(
+                (IsResponse ? 0b10000000 : 0) |
+                ((byte)OpCode << 3) |
+                (IsAuthoritativeAnswer ? 0b00000100 : 0) |
+                (IsTruncated ? 0b00001000 : 0) |
+                (IsRecursionDesired ? 0b00000001 : 0)
+            ),
+            (byte)(
+                (IsRecursionAvailable ? 0b00100000 : 0) |
+                (Reserved << 4) |
+                (byte)ResponseCode
+            ),
+            (byte)(QuestionCount >> 8),
+            (byte)QuestionCount,
+            (byte)(AnswerCount >> 8),
+            (byte)AnswerCount,
+            (byte)(AuthorityCount >> 8),
+            (byte)AuthorityCount,
+            (byte)(AdditionalCount >> 8),
+            (byte)AdditionalCount
+        };
 
-        response[0] = (byte)(Id >> 8);
-        response[1] = (byte)Id;
-        response[2] = (byte)(
-            (IsResponse ? 0b10000000 : 0) |
-            ((byte)OpCode << 3) |
-            (IsAuthoritativeAnswer ? 0b00000100 : 0) |
-            (IsTruncated ? 0b00001000 : 0) |
-            (IsRecursionDesired ? 0b00000001 : 0)
-        );
-        response[3] = (byte)(
-            (IsRecursionAvailable ? 0b00100000 : 0) |
-            (Reserved << 4) |
-            (byte)ResponseCode
-        );
-        response[4] = (byte)(QuestionCount >> 8);
-        response[5] = (byte)QuestionCount;
-        response[6] = (byte)(AnswerCount >> 8);
-        response[7] = (byte)AnswerCount;
-        response[8] = (byte)(AuthorityCount >> 8);
-        response[9] = (byte)AuthorityCount;
-        response[10] = (byte)(AdditionalCount >> 8);
-        response[11] = (byte)AdditionalCount;
+        if (Questions != null)
+        {
+            foreach (var question in Questions)
+            {
+                response.AddRange(question.ToBytes());
+            }
+        }
 
-        return response;
+
+        return response.ToArray();
     }
 }
