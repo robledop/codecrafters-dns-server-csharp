@@ -20,13 +20,23 @@ while (true)
     byte[] receivedData = udpClient.Receive(ref sourceEndPoint);
     string receivedString = Encoding.ASCII.GetString(receivedData);
 
-    var dnsPacket = DnsPacket.Parse(receivedData);
+    var dnsPacket = DnsMessage.Parse(receivedData);
 
-    WriteLine($"DNS Packet received from {sourceEndPoint}: {dnsPacket}");
+    WriteLine($"DNS message received from {sourceEndPoint}: {dnsPacket}");
 
     var responsePacket = dnsPacket.Clone();
     ArgumentNullException.ThrowIfNull(responsePacket);
-    responsePacket.IsResponse = true;
+    responsePacket.Header.IsResponse = true;
+
+    responsePacket.AddAnswer(new DnsResourceRecord
+    {
+        Name = "codecrafters.io",
+        Type = DnsRecordType.A,
+        Class = DnsRecordClass.IN,
+        TimeToLive = 60,
+        DataLength = 4,
+        Data = [8, 8, 8, 8]
+    });
 
     WriteLine($"Sending response to {sourceEndPoint}: {responsePacket}");
 

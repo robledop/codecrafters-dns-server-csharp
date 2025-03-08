@@ -15,11 +15,11 @@ public class DnsQuestion
         var questionsLength = 0;
         for (int i = 0; i < questionsCount; i++)
         {
-            var (domainName, qnameLength, offset) = DecodeDomainName(bytes[(HEADER_LENGTH + questionsLength)..]);
+            var (domainName, qnameLength, offset) = QName.DecodeDomainName(bytes[(HEADER_LENGTH + questionsLength)..]);
 
             if (offset > 0)
             {
-                var (compressedLabel, _, _) = DecodeDomainName(bytes[offset..]);
+                var (compressedLabel, _, _) = QName.DecodeDomainName(bytes[offset..]);
                 domainName.Append(compressedLabel.ToString());
                 qnameLength -= 1;
             }
@@ -39,39 +39,6 @@ public class DnsQuestion
         }
 
         return (questions, questionsLength);
-    }
-
-    public static (StringBuilder, int, int) DecodeDomainName(byte[] bytes)
-    {
-        var domainName = new StringBuilder();
-        int i = 0;
-        int offset = 0;
-
-        while (bytes[i] != 0)
-        {
-            int length = bytes[i];
-            bool isPointer = (length & 0b11000000) == 0b11000000;
-
-            if (isPointer)
-            {
-                offset = ((length & 0b00111111) << 8) | bytes[i + 1];
-                i += 2;
-            }
-            else
-            {
-                i += 1;
-                var part = bytes[i.. (i + length)];
-                domainName.Append(Encoding.ASCII.GetString(part));
-                i += length;
-            }
-
-            if (bytes[i] != 0)
-            {
-                domainName.Append('.');
-            }
-        }
-
-        return (domainName, i + 1, offset);
     }
 
     public byte[] ToBytes()
