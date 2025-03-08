@@ -9,9 +9,26 @@ using static System.Console;
 IPAddress ipAddress = IPAddress.Parse("127.0.0.1");
 int port = 2053;
 IPEndPoint udpEndPoint = new IPEndPoint(ipAddress, port);
+IPEndPoint? resolverEndpoint = null;
 
 // Create UDP socket
 UdpClient udpClient = new UdpClient(udpEndPoint);
+
+var requestPool = new List<(ushort Id, IPEndPoint EndPoint, DnsMessage Message)?>();
+var responsePool = new List<(ushort Id, IPEndPoint EndPoint, DnsMessage Message)?>();
+
+
+if (args.Contains("--resolver"))
+{
+    var index = args.ToList().IndexOf("--resolver");
+    var resolver = args.ToList()[index + 1];
+
+    var resolverIpString = resolver.Split(':')[0];
+    IPAddress resolverIp = IPAddress.Parse(resolverIpString);
+    int resolverPort = int.Parse(resolver.Split(':')[1]);
+
+    resolverEndpoint = new IPEndPoint(resolverIp, resolverPort);
+}
 
 while (true)
 {
@@ -20,41 +37,91 @@ while (true)
     byte[] receivedData = udpClient.Receive(ref sourceEndPoint);
     string receivedString = Encoding.ASCII.GetString(receivedData);
 
-    var dnsPacket = DnsMessage.Parse(receivedData);
+    var request = DnsMessage.Parse(receivedData);
 
-    WriteLine($"DNS message received from {sourceEndPoint}: {dnsPacket}");
-
-    var responsePacket = dnsPacket.Clone();
-    ArgumentNullException.ThrowIfNull(responsePacket);
-    responsePacket.Header.IsResponse = true;
-
-    if (!responsePacket.Header.IsResponse)
+    if (request.Header.IsResponse)
     {
-        responsePacket.Header.ResponseCode = DnsResponseCode.NoError;
+        WriteLine($"Received response from {sourceEndPoint}: {request}");
+
+        var responseFromForwarder = request.Clone();
+
+        var originalRequest = requestPool.FirstOrDefault(x => x?.Id == request.Header.Id);
+
+        ArgumentNullException.ThrowIfNull(originalRequest);
+
+        if (originalRequest?.Message.Header.QuestionCount > 1)
+        {
+            var queuedResponse = responsePool.FirstOrDefault(x => x?.Id == originalRequest?.Message.Header.Id);
+
+            if (queuedResponse is not null)
+            {
+                var responseMessage = queuedResponse?.Message;
+                ArgumentNullException.ThrowIfNull(responseMessage);
+
+                responseMessage.Questions = responseFromForwarder!.Questions;
+
+                responseMessage.Answers!.AddRange(responseFromForwarder.Answers!);
+                responseMessage.Header.AnswerCount += responseFromForwarder.Header.AnswerCount;
+
+                if (responseMessage.Header.AnswerCount == originalRequest.Value.Message.Header.QuestionCount)
+                {
+                    WriteLine($"Sending COMBINED response to {queuedResponse!.Value.EndPoint}: {responseMessage}");
+
+                    byte[] responseBytes = responseMessage.ToBytes();
+                    await udpClient.SendAsync(responseBytes, responseBytes.Length, originalRequest.Value.EndPoint);
+                }
+                else
+                {
+                    WriteLine(
+                        $"Answer count: {responseMessage.Header.AnswerCount}, Question count: {originalRequest.Value.Message.Header.QuestionCount}");
+                }
+            }
+            else
+            {
+                responsePool.Add(
+                    (originalRequest.Value.Message.Header.Id, originalRequest.Value.EndPoint, responseFromForwarder)!);
+            }
+        }
+        else
+        {
+            WriteLine($"Sending response to {originalRequest!.Value.EndPoint}: {request}");
+            byte[] responseBytes = responseFromForwarder!.ToBytes();
+            await udpClient.SendAsync(responseBytes, responseBytes.Length, originalRequest.Value.EndPoint);
+
+            var index = requestPool.FindIndex(x => x?.Id == responseFromForwarder.Header.Id);
+            requestPool.RemoveAt(index);
+        }
     }
     else
     {
-        responsePacket.Header.ResponseCode = DnsResponseCode.NotImplemented;
-    }
+        WriteLine($"Received query from {sourceEndPoint}: {request}");
 
-    if (responsePacket.Questions != null)
-        foreach (var question in responsePacket.Questions)
+        requestPool.Add((request.Header.Id, sourceEndPoint, request));
+
+        if (request.Header.QuestionCount > 1)
         {
-            responsePacket.AddAnswer(new DnsResourceRecord
+            ArgumentNullException.ThrowIfNull(request.Questions);
+
+            foreach (var question in request.Questions)
             {
-                Name = question.Name,
-                Type = DnsRecordType.A,
-                Class = DnsRecordClass.IN,
-                TimeToLive = 60,
-                DataLength = 4,
-                Data = [8, 8, 8, 8]
-            });
+                var forwardedRequest = request.Clone()!;
+                forwardedRequest.Header.QuestionCount = 1;
+                forwardedRequest.Questions!.Clear();
+                forwardedRequest.Questions.Add(question);
+                forwardedRequest.Header.IsResponse = false;
+
+                WriteLine($"Forwarding request to {resolverEndpoint}: {forwardedRequest}");
+
+                byte[] forwardedRequestBytes = forwardedRequest.ToBytes();
+                await udpClient.SendAsync(forwardedRequestBytes, forwardedRequestBytes.Length, resolverEndpoint);
+            }
         }
+        else
+        {
+            WriteLine($"Forwarding request to {resolverEndpoint}: {request}");
 
-    WriteLine($"Sending response to {sourceEndPoint}: {responsePacket}");
-
-    byte[] response = responsePacket.ToBytes();
-
-    // Send response
-    await udpClient.SendAsync(response, response.Length, sourceEndPoint);
+            byte[] forwardedRequestBytes = request.ToBytes();
+            await udpClient.SendAsync(forwardedRequestBytes, forwardedRequestBytes.Length, resolverEndpoint);
+        }
+    }
 }

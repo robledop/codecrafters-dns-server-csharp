@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Xml;
 
 namespace codecrafters_dns_server.Model;
 
@@ -14,7 +13,7 @@ public class DnsMessage
     public static DnsMessage Parse(byte[] data)
     {
         var header = DnsHeader.Parse(data);
-        
+
         var message = new DnsMessage
         {
             Header = header,
@@ -36,7 +35,7 @@ public class DnsMessage
 
     public byte[] ToBytes()
     {
-        var response = new List<byte>(Header.ToBytes());
+        List<byte> response = [..Header.ToBytes()];
 
         if (Questions != null)
         {

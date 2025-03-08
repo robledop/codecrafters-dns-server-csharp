@@ -36,36 +36,31 @@ public class DnsHeader
         };
     }
 
-    public byte[] ToBytes()
-    {
-        // Header
-        var response = new List<byte>
-        {
-            (byte)(Id >> 8),
-            (byte)Id,
-            (byte)(
-                (IsResponse ? 0b10000000 : 0) |
-                ((byte)OpCode << 3) |
-                (IsAuthoritativeAnswer ? 0b00000100 : 0) |
-                (IsTruncated ? 0b00001000 : 0) |
-                (IsRecursionDesired ? 0b00000001 : 0)
-            ),
-            (byte)(
-                (IsRecursionAvailable ? 0b00100000 : 0) |
-                (Reserved << 4) |
-                (byte)ResponseCode
-            ),
-            (byte)(QuestionCount >> 8),
-            (byte)QuestionCount,
-            (byte)(AnswerCount >> 8),
-            (byte)AnswerCount,
-            (byte)(AuthorityCount >> 8),
-            (byte)AuthorityCount,
-            (byte)(AdditionalCount >> 8),
-            (byte)AdditionalCount
-        };
+    public byte[] ToBytes() =>
+    [
+        (byte)(Id >> 8),
+        (byte)Id,
+        (byte)(
+            (IsResponse ? 0b10000000 : 0) |
+            ((byte)OpCode << 3) |
+            (IsAuthoritativeAnswer ? 0b00000100 : 0) |
+            (IsTruncated ? 0b00001000 : 0) |
+            (IsRecursionDesired ? 0b00000001 : 0)
+        ),
 
+        (byte)(
+            (IsRecursionAvailable ? 0b00100000 : 0) |
+            (Reserved << 4) |
+            (byte)ResponseCode
+        ),
 
-        return response.ToArray();
-    }
+        (byte)(QuestionCount >> 8),
+        (byte)QuestionCount,
+        (byte)(AnswerCount >> 8),
+        (byte)AnswerCount,
+        (byte)(AuthorityCount >> 8),
+        (byte)AuthorityCount,
+        (byte)(AdditionalCount >> 8),
+        (byte)AdditionalCount
+    ];
 }

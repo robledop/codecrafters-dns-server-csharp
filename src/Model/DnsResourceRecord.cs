@@ -1,5 +1,5 @@
-using System.Buffers.Binary;
 using System.Text;
+using static System.Console;
 
 namespace codecrafters_dns_server.Model;
 
@@ -15,32 +15,36 @@ public class DnsResourceRecord
     public static List<DnsResourceRecord> Parse(byte[] bytes, int answerCount, int offset)
     {
         const int HEADER_LENGTH = 12;
+
         var records = new List<DnsResourceRecord>();
 
         var recordsLength = 0;
 
         for (int i = 0; i < answerCount; i++)
         {
-            var (qname, length, _) = QName.DecodeDomainName(bytes[(HEADER_LENGTH + recordsLength)..]);
+            var (qname, length, _) = QName.DecodeDomainName(bytes[(HEADER_LENGTH + recordsLength + offset)..]);
 
-            var qType = (bytes[HEADER_LENGTH + recordsLength + length] << 8) |
-                        bytes[HEADER_LENGTH + recordsLength + length + 1];
+            var qType = (bytes[HEADER_LENGTH + recordsLength + length + offset] << 8) |
+                        bytes[HEADER_LENGTH + recordsLength + length + offset + 1];
 
-            var qClass = (bytes[HEADER_LENGTH + recordsLength + length + 2] << 8)
-                         | bytes[HEADER_LENGTH + recordsLength + length + 3];
+            var qClass = (bytes[HEADER_LENGTH + recordsLength + length + offset + 2] << 8)
+                         | bytes[HEADER_LENGTH + recordsLength + length + offset + 3];
 
-            var ttl = bytes[HEADER_LENGTH + recordsLength + length + 4] << 24
-                      | bytes[HEADER_LENGTH + recordsLength + length + 5] << 16
-                      | bytes[HEADER_LENGTH + recordsLength + length + 6] << 8
-                      | bytes[HEADER_LENGTH + recordsLength + length + 7];
+            var ttl = bytes[HEADER_LENGTH + recordsLength + length + offset + 4] << 24
+                      | bytes[HEADER_LENGTH + recordsLength + length + offset + 5] << 16
+                      | bytes[HEADER_LENGTH + recordsLength + length + offset + 6] << 8
+                      | bytes[HEADER_LENGTH + recordsLength + length + offset + 7];
 
-            var rdLength = bytes[HEADER_LENGTH + recordsLength + length + 8] << 8
-                           | bytes[HEADER_LENGTH + recordsLength + length + 9];
+            var rdLength = bytes[HEADER_LENGTH + recordsLength + length + offset + 8] << 8
+                           | bytes[HEADER_LENGTH + recordsLength + length + offset + 9];
 
-            var rdData =
-                bytes[
-                    (HEADER_LENGTH + recordsLength + length + 10)..(HEADER_LENGTH + recordsLength + length + 10 +
-                                                                    rdLength)];
+            WriteLine($"RecordsLength: {recordsLength}, Lenght: {length}, RdLength: {rdLength}, Offset: {offset}");
+            var rdData = rdLength > 0
+                ? bytes[
+                    (HEADER_LENGTH + recordsLength + length + offset + 10)
+                    ..
+                    (HEADER_LENGTH + recordsLength + length + +offset + 10 + rdLength)]
+                : [];
 
             records.Add(new DnsResourceRecord
             {
@@ -81,7 +85,7 @@ public class DnsResourceRecord
         bytes.Add(Convert.ToByte((int)Class));
 
         bytes.AddRange(BitConverter.GetBytes(TimeToLive));
-        bytes.Add(Convert.ToByte((int)DataLength >> 8));
+        bytes.Add(Convert.ToByte(DataLength >> 8));
         bytes.Add(Convert.ToByte((int)DataLength));
         if (Data != null) bytes.AddRange(Data);
 

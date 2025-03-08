@@ -8,15 +8,17 @@ public class DnsQuestion
     public DnsRecordType Type { get; set; }
     public DnsRecordClass Class { get; set; }
 
-    public static (List<DnsQuestion>, int) Parse(byte[] bytes, ushort questionsCount)
+    public static (List<DnsQuestion> questions, int questionsLength) Parse(byte[] bytes, ushort questionsCount)
     {
-        const int HEADER_LENGTH = 12;
+        const int headerLength = 12;
+
         var questions = new List<DnsQuestion>();
         var questionsLength = 0;
         for (int i = 0; i < questionsCount; i++)
         {
-            var (domainName, qnameLength, offset) = QName.DecodeDomainName(bytes[(HEADER_LENGTH + questionsLength)..]);
+            var (domainName, qnameLength, offset) = QName.DecodeDomainName(bytes[(headerLength + questionsLength)..]);
 
+            // We have a compressed label
             if (offset > 0)
             {
                 var (compressedLabel, _, _) = QName.DecodeDomainName(bytes[offset..]);
@@ -24,18 +26,20 @@ public class DnsQuestion
                 qnameLength -= 1;
             }
 
-            var qtype = ((bytes[HEADER_LENGTH + questionsLength + qnameLength]) << 8)
-                        | (bytes[HEADER_LENGTH + questionsLength + qnameLength + 1]);
+            var qType = ((bytes[headerLength + questionsLength + qnameLength]) << 8)
+                        | (bytes[headerLength + questionsLength + qnameLength + 1]);
 
-            var qclase = ((bytes[HEADER_LENGTH + questionsLength + qnameLength + 2]) << 8)
-                         | (bytes[HEADER_LENGTH + questionsLength + qnameLength + 3]);
+            var qClass = ((bytes[headerLength + questionsLength + qnameLength + 2]) << 8)
+                         | (bytes[headerLength + questionsLength + qnameLength + 3]);
 
             questions.Add(new DnsQuestion
             {
                 Name = domainName.ToString(),
-                Type = (DnsRecordType)qtype,
-                Class = (DnsRecordClass)qclase,
+                Type = (DnsRecordType)qType,
+                Class = (DnsRecordClass)qClass,
             });
+            
+            questionsLength +=  qnameLength + 4;
         }
 
         return (questions, questionsLength);
