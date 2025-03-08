@@ -1,11 +1,9 @@
-using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using codecrafters_dns_server;
 using codecrafters_dns_server.Model;
-
-// You can use print statements as follows for debugging, they'll be visible when running tests.
-Console.WriteLine("Logs from your program will appear here!");
+using static System.Console;
 
 // Uncomment this block to pass the first stage
 // Resolve UDP address
@@ -23,15 +21,18 @@ while (true)
     byte[] receivedData = udpClient.Receive(ref sourceEndPoint);
     string receivedString = Encoding.ASCII.GetString(receivedData);
 
-    Console.WriteLine($"Received {receivedData.Length} bytes from {sourceEndPoint}: {receivedString}");
-
     var dnsPacket = DnsPacket.Parse(receivedData);
 
-    Console.WriteLine($"DNS Packet: {dnsPacket}");
+    WriteLine($"DNS Packet received from {sourceEndPoint}: {dnsPacket}");
 
-    // Create an empty response
-    byte[] response = Encoding.ASCII.GetBytes("");
+    var responsePacket = dnsPacket.Clone();
+    ArgumentNullException.ThrowIfNull(responsePacket);
+    responsePacket.IsResponse = true;
+
+    WriteLine($"Sending response to {sourceEndPoint}: {responsePacket}");
+
+    byte[] response = responsePacket.ToBytes();
 
     // Send response
-    udpClient.Send(response, response.Length, sourceEndPoint);
+    await udpClient.SendAsync(response, response.Length, sourceEndPoint);
 }
